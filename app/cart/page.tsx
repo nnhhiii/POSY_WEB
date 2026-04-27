@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { getCart, removeFromCart, updateQuantity } from "@/services/cart";
+import { getCart, removeFromCart, updateQuantity } from "@/services/cart.service";
 import { CartItem } from "@/types/cart";
+import { apiService } from "@/services/api.service";
+import { useSnackbar } from "@/components/SnackbarContext";
 
 export default function CartPage() {
+    const { showMessage } = useSnackbar();
     const [cart, setCart] = useState<CartItem[]>([]);
 
     useEffect(() => {
@@ -39,6 +42,43 @@ export default function CartPage() {
             removeFromCart(productId);
         }
     };
+
+    const subtotal = cart.reduce(
+        (sum, item) => sum + item.price * item.quantity,
+        0
+    )
+
+    const handleCheckout = async () => {
+        if (cart.length === 0) {
+            showMessage("Cart is empty", "error");
+            return
+        }
+
+        try {
+            const payload = cart.map((item) => ({
+                productId: item.productId,
+                quantity: item.quantity,
+                note: null,
+            }))
+
+            const res = await apiService.createOrder(payload)
+
+            showMessage("Order placed successfully", "success");
+
+            // clear cart
+            setCart([])
+            localStorage.removeItem("cart")
+
+            console.log(res.data)
+        } catch (e: any) {
+            console.error(e)
+            if (e?.response?.data?.message) {
+                showMessage(e.response.data.message, "error");
+            } else {
+                showMessage("Something went wrong", "error");
+            }
+        }
+    }
     return (
         <div className="space-y-6">
 
@@ -105,6 +145,22 @@ export default function CartPage() {
                     </div>
                 ))}
 
+            </div>
+
+            <div className="border-t pt-4 space-y-2">
+                <div className="flex justify-between">
+                    <span className="text-gray-600">Subtotal</span>
+                    <span className="font-semibold">
+                        {subtotal.toLocaleString()}₫
+                    </span>
+                </div>
+
+                <button
+                    onClick={handleCheckout}
+                    className="w-full mt-3 bg-[#3554C1] text-white py-3 rounded-xl font-semibold hover:opacity-90 transition"
+                >
+                    Đặt món
+                </button>
             </div>
         </div>
     );

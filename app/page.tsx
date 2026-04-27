@@ -1,95 +1,88 @@
 "use client";
 
 import ProductCard from "@/components/product/ProductCard"
-import { Product } from "@/types/product"
-import { useState } from "react";
+import { useSnackbar } from "@/components/SnackbarContext";
+import { apiService } from "@/services/api.service";
+import { Category, Product } from "@/types/product"
+import { useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 
 
 export default function Home() {
+  const searchParams = useSearchParams();
+
+  const tableId = searchParams.get("tableId");
+  const token = searchParams.get("token");
+  const [sessionReady, setSessionReady] = useState(false);
+
+  const { showMessage } = useSnackbar();
+  const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Category[]>([]);
+  const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
 
-  const products: Product[] = [
-    {
-      id: "1",
-      sku: "BEEF01",
-      name: "Beef Burger",
-      description: '1 McChicken™, 1 Big Mac™,  1 Royal Cheeseburger, 3 medium sized French Fries , 3 cold drinks',
-      price: 120000,
-      imageUrl: "https://picsum.photos/200",
-      stockQuantity: 100,
-      isAvailable: true,
-      isDeleted: false,
-      category: { id: "1", name: "Burger" },
-    },
-    {
-      id: "2",
-      sku: "CHK01",
-      name: "Fried Chicken",
-      description: '1 McChicken™, 1 Big Mac™,  1 Royal Cheeseburger, 3 medium sized French Fries , 3 cold drinks',
-      price: 90000,
-      imageUrl: "https://picsum.photos/201",
-      stockQuantity: 100,
-      isAvailable: true,
-      isDeleted: false,
-      category: { id: "2", name: "Chicken" },
-    },
-    {
-      id: "3",
-      sku: "COF01",
-      name: "Coffee",
-      description: '1 McChicken™, 1 Big Mac™,  1 Royal Cheeseburger, 3 medium sized French Fries , 3 cold drinks',
-      price: 30000,
-      imageUrl: "https://picsum.photos/202",
-      stockQuantity: 100,
-      isAvailable: true,
-      isDeleted: false,
-      category: { id: "3", name: "Drink" },
-    },
-    {
-      id: "4",
-      sku: "COF02",
-      name: "Coffee 2",
-      description: '1 McChicken™, 1 Big Mac™,  1 Royal Cheeseburger, 3 medium sized French Fries , 3 cold drinks',
-      price: 30000,
-      imageUrl: "https://picsum.photos/203",
-      stockQuantity: 100,
-      isAvailable: true,
-      isDeleted: false,
-      category: { id: "4", name: "Drink" },
-    },
-    {
-      id: "5",
-      sku: "COF03",
-      name: "Coffee 3",
-      description: '1 McChicken™, 1 Big Mac™,  1 Royal Cheeseburger, 3 medium sized French Fries , 3 cold drinks',
-      price: 30000,
-      imageUrl: "https://picsum.photos/204",
-      stockQuantity: 100,
-      isAvailable: true,
-      isDeleted: false,
-      category: { id: "5", name: "Drink" },
-    },
-    {
-      id: "6",
-      sku: "COF04",
-      name: "Coffee 4",
-      description: '1 McChicken™, 1 Big Mac™,  1 Royal Cheeseburger, 3 medium sized French Fries , 3 cold drinks',
-      price: 30000,
-      imageUrl: "https://picsum.photos/205",
-      stockQuantity: 100,
-      isAvailable: true,
-      isDeleted: false,
-      category: { id: "6", name: "Drink" },
-    },
-  ]
+  useEffect(() => {
+    const initSession = async () => {
+      if (tableId && token) {
+        try {
+          await apiService.startSession(tableId, token);
+          showMessage("Quét QR thành công!", "success");
 
-  const categories = [
-    { id: "1", name: "All" },
-    { id: "2", name: "Burger" },
-    { id: "3", name: "Pizza" },
-    { id: "4", name: "Drink" },
-    { id: "5", name: "Dessert" },
-  ];
+          // Xóa query trên URL cho sạch
+          window.history.replaceState({}, document.title, "/");
+
+        } catch (err: any) {
+          console.error(err);
+          showMessage("Không thể tạo session", "error");
+        }
+      }
+      setSessionReady(true);
+    };
+
+    initSession();
+  }, [tableId, token]);
+
+  const fetchProducts = async (q?: string) => {
+    setLoading(true);
+    try {
+      const res = await apiService.getProducts(q);
+      setProducts(res.data.items);
+    } catch (err: any) {
+      console.error(err);
+
+      if (err?.response?.data?.message) {
+        showMessage(err.response.data.message, 'error');
+      } else {
+        showMessage('Something went wrong', 'error');
+      }
+    }
+    setLoading(false);
+  };
+
+  const fetchCategories = async () => {
+    setLoading(true);
+    try {
+      const res = await apiService.getCategories();
+      setCategories(res.data.items);
+    } catch (err: any) {
+      console.error(err);
+
+      if (err?.response?.data?.message) {
+        showMessage(err.response.data.message, 'error');
+      } else {
+        showMessage('Something went wrong', 'error');
+      }
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    if (!sessionReady) return;
+
+    fetchProducts();
+    fetchCategories();
+  }, [sessionReady]);
+
   return (
     <div className="space-y-6">
 
@@ -107,33 +100,54 @@ export default function Home() {
       </div>
 
       {/* Search */}
-      <input
-        type="text"
-        placeholder="Search food..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        className="w-full p-3 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-[#3554C1]"
-      />
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          fetchProducts(search);
+        }}
+        className="flex gap-2">
+        <input
+          type="text"
+          placeholder="Search food..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          className="w-full p-3 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-[#3554C1]"
+        />
+        <button type="submit" className="px-4 py-2 bg-[#3554C1] text-white rounded-xl hover:bg-[#2a439c] transition cursor-pointer">
+          Search
+        </button>
+      </form>
 
-      {/* Categories */}
-      <div className="flex gap-3 overflow-x-auto pb-2">
-        {categories.map((c) => (
-          <button
-            key={c.id}
-            className="px-4 py-2 rounded-full bg-white hover:bg-[#3554C1] hover:text-white whitespace-nowrap transition"
-          >
-            {c.name}
-          </button>
-        ))}
-      </div>
+      {loading ? (
+        <div className="h-64 flex flex-col items-center justify-center">
+          <div className="w-10 h-10 border-4 border-slate-300 border-t-slate-900 rounded-full animate-spin mb-4"></div>
+          <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+            Đang tải...
+          </p>
+        </div>
+      ) : (
+        <>
+          {/* Categories */}
+          <div className="flex gap-3 overflow-x-auto pb-2 no-scrollbar">
+            {categories.map((c) => (
+              <button
+                key={c.id}
+                className="px-4 py-2 rounded-full bg-white hover:bg-[#3554C1] hover:text-white whitespace-nowrap transition cursor-pointer"
+              >
+                {c.name}
+              </button>
+            ))}
+          </div>
 
-      {/* Product grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {products.map((p) => (
-          <ProductCard key={p.id} product={p} />
-        ))}
-      </div>
+          {/* Product grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {products.map((p) => (
+              <ProductCard key={p.id} product={p} />
+            ))}
+          </div>
+        </>
 
+      )}
     </div>
 
   )

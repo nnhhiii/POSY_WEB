@@ -22,10 +22,12 @@ export interface Product {
 
     imageUrl?: string
 
-    stockQuantity: number
-    isAvailable: boolean
-    isDeleted: boolean
-
-    createdAt?: string
-    updatedAt?: string
+    attributes?: {
+        preparationTime?: number
+        spiceLevel?: number
+        dietaryTags?: string[]
+        cuisine?: {
+            name: string
+        }
+    }
 }
