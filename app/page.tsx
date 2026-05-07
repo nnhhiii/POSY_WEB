@@ -4,48 +4,32 @@ import ProductCard from "@/components/product/ProductCard"
 import { useSnackbar } from "@/components/SnackbarContext";
 import { apiService } from "@/services/api.service";
 import { Category, Product } from "@/types/product"
-import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 
 export default function Home() {
-  const searchParams = useSearchParams();
-
-  const tableId = searchParams.get("tableId");
-  const token = searchParams.get("token");
-  const [sessionReady, setSessionReady] = useState(false);
-
   const { showMessage } = useSnackbar();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(false);
   const [search, setSearch] = useState("");
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
 
   useEffect(() => {
-    const initSession = async () => {
-      if (tableId && token) {
-        try {
-          await apiService.startSession(tableId, token);
-          showMessage("Quét QR thành công!", "success");
-
-          // Xóa query trên URL cho sạch
-          window.history.replaceState({}, document.title, "/");
-
-        } catch (err: any) {
-          console.error(err);
-          showMessage("Không thể tạo session", "error");
-        }
-      }
-      setSessionReady(true);
-    };
-
-    initSession();
-  }, [tableId, token]);
+    fetchProducts(search);
+  }, [selectedCategoryIds]);
 
   const fetchProducts = async (q?: string) => {
     setLoading(true);
+
     try {
-      const res = await apiService.getProducts(q);
+      const categoryIdStr =
+        selectedCategoryIds.length > 0
+          ? selectedCategoryIds.join(',')
+          : undefined;
+
+      const res = await apiService.getProducts(q, categoryIdStr);
+
       setProducts(res.data.items);
     } catch (err: any) {
       console.error(err);
@@ -56,6 +40,7 @@ export default function Home() {
         showMessage('Something went wrong', 'error');
       }
     }
+
     setLoading(false);
   };
 
@@ -77,11 +62,9 @@ export default function Home() {
   };
 
   useEffect(() => {
-    if (!sessionReady) return;
-
     fetchProducts();
     fetchCategories();
-  }, [sessionReady]);
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -132,11 +115,31 @@ export default function Home() {
             {categories.map((c) => (
               <button
                 key={c.id}
-                className="px-4 py-2 rounded-full bg-white hover:bg-[#3554C1] hover:text-white whitespace-nowrap transition cursor-pointer"
+                className={`px-4 py-2 rounded-full whitespace-nowrap transition cursor-pointer ${selectedCategoryIds.includes(c.id)
+                  ? "bg-[#3554C1] text-white"
+                  : "bg-white hover:bg-[#3554C1] hover:text-white"
+                  }`}
+                onClick={() => {
+                  setSelectedCategoryIds((prev) => {
+                    if (prev.includes(c.id)) {
+                      return prev.filter((id) => id !== c.id);
+                    }
+                    return [...prev, c.id];
+                  });
+                }}
               >
                 {c.name}
               </button>
             ))}
+          </div>
+
+          <div className="flex justify-end">
+            <button
+              className="px-4 py-2 bg-[#3554C1] text-white rounded-xl hover:bg-[#2a439c] transition cursor-pointer"
+              onClick={() => setSelectedCategoryIds([])}
+            >
+              Clear
+            </button>
           </div>
 
           {/* Product grid */}
